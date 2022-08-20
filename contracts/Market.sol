@@ -95,6 +95,7 @@ contract Market is AccessControl,Pausable{
         require(_order.amount >= amount,"Not enough token in order, rewrite amount");
         _order.amount = _order.amount - amount;
         uint paymentToBuyer = _order.price *amount;
+        IERC20(paymentToken).transfer(address(this), paymentToBuyer);
         uint paymentToSeller = calculateFeeFromOrder(paymentToBuyer);
         IERC20(paymentToken).transferFrom(address(this), msg.sender, paymentToSeller);
         if (_order.typeToken == Type.ERC721){
