@@ -23,6 +23,36 @@ async fn main() -> web3::Result<()> {
             balance.checked_div(wei_conv).unwrap()
         );
     }
-    let market_addr = Address::from_str("0xC1E5531D98093831300E9E17fC1f4fAeC1D51772");
+    let market_addr = Address::from_str("0xC1E5531D98093831300E9E17fC1f4fAeC1D51772").unwrap();
+    let market_contract = Contract::from_json(
+        web3s.eth(),
+        market_addr,
+        include_bytes!("../bin/contracts/Market.json"),
+    )
+    .unwrap();
+
+    let Token_addr = Address::from_str("0xf28b5b9995c052a0e4ec1b848eafa6d3b29a7724").unwrap();
+    let token_contract = Contract::from_json(
+        web3s.eth(),
+        Token_addr,
+        include_bytes!("../bin/contracts/Token.json"),
+    )
+    .unwrap();
+    let nft_addr = Address::from_str("0x9ea9E1FB8d3B458407f2F348f93574f270d1a529").unwrap();
+    let nft_contract = Contract::from_json(
+        web3s.eth(),
+        Token_addr,
+        include_bytes!("../bin/contracts/NFT.json"),
+    )
+    .unwrap();
+
+    let collection_addr = Address::from_str("0x9ea9E1FB8d3B458407f2F348f93574f270d1a529").unwrap();
+    let collection_contract = Contract::from_json(
+        web3s.eth(),
+        Token_addr,
+        include_bytes!("../bin/contracts/Collection.json"),
+    )
+    .unwrap();
+
     Ok(())
 }

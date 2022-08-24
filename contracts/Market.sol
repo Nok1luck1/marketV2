@@ -5,10 +5,16 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+// import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+// import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+//import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+//import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "./Collection.sol";
+import "./NFT.sol";
+
 
 contract Market is AccessControl,Pausable{
+    using SafeERC20 for IERC20;
     enum Status{
        SelledPart,Listed
     }
@@ -49,13 +55,12 @@ contract Market is AccessControl,Pausable{
     }
     function unpause()private whenPaused{
         _unpause();
-
     }
-    function createOrder(string calldata _type,uint _price,address _token,uint _id,uint _amount,bytes calldata _data) public whenNotPaused {
-        bytes32 hashOrder = keccak256(abi.encode(_type,_price,_token));
+    function createOrder(string calldata _type,uint _price,address _target,uint _id,uint _amount,bytes calldata _data) public whenNotPaused returns(bytes32){
+        bytes32 hashOrder = keccak256(abi.encode(_type,_price,_target));
         Order storage _order = orderByHash[hashOrder];
         _order.seller = msg.sender;
-        _order.target = _token;
+        _order.target = _target;
         _order.typeToken = matchType(_type);
         _order.amount = _amount;
         _order.id = _id;
@@ -63,17 +68,18 @@ contract Market is AccessControl,Pausable{
         _order.data = _data;
         _order.status = Status.Listed;
         if (_order.typeToken == Type.ERC721){
-            IERC721(_token).safeTransferFrom(address(msg.sender), address(this), _id, _data);
+            IERC721(_target).safeTransferFrom(address(msg.sender), address(this), _id, _data);
         }
         else if  (_order.typeToken == Type.ERC1155){
-            IERC1155(_token).safeTransferFrom(address(msg.sender),address(this),_id,_amount,_data);
+            IERC1155(_target).safeTransferFrom(address(msg.sender),address(this),_id,_amount,_data);
         }
         else{
             revert("Must be fail earlier");
         }
-        emit CreatedOrder(msg.sender, _order.typeToken, _amount, _token, hashOrder);
+        emit CreatedOrder(msg.sender, _order.typeToken, _amount, _target, hashOrder);
+        return hashOrder;
     }
-    function cancelOrder(bytes32 _hashOrder) public returns(bytes32){
+    function cancelOrder(bytes32 _hashOrder) public {
         require(hasRole(ADMIN, msg.sender));
         Order storage _order = orderByHash[_hashOrder];
         if (_order.typeToken == Type.ERC721){
@@ -86,30 +92,30 @@ contract Market is AccessControl,Pausable{
             revert("Must be fail earlier");
         }
         emit CancelOrderByAdmin(_hashOrder, block.timestamp);
-        delete _hashOrder;
-        return _hashOrder;
+        delete orderByHash[_hashOrder];
+        
     }
     function buyFromOrder(bytes32 hashOrder,uint amount) public {
         Order storage _order = orderByHash[hashOrder];
         require(_order.amount > 0,"Order is empty/WHAT?!");
         require(_order.amount >= amount,"Not enough token in order, rewrite amount");
-        _order.amount = _order.amount - amount;
         uint paymentToBuyer = _order.price *amount;
-        IERC20(paymentToken).transfer(address(this), paymentToBuyer);
+        IERC20(paymentToken).safeTransferFrom(address(msg.sender),address(this),paymentToBuyer);
         uint paymentToSeller = calculateFeeFromOrder(paymentToBuyer);
-        IERC20(paymentToken).transferFrom(address(this), msg.sender, paymentToSeller);
+        IERC20(paymentToken).safeTransfer(msg.sender, paymentToSeller);
         if (_order.typeToken == Type.ERC721){
-            IERC721(_order.target).safeTransferFrom(address(msg.sender), address(this), _order.id, _order.data);
+            IERC721(_order.target).safeTransferFrom(address(this),address(msg.sender), _order.id);
+            delete orderByHash[hashOrder];
         }
         else if  (_order.typeToken == Type.ERC1155){
-            IERC1155(_order.target).safeTransferFrom(address(msg.sender),address(this),_order.id,amount,_order.data);
+            IERC1155(_order.target).safeTransferFrom(address(this),address(msg.sender),_order.id, _order.amount, _order.data);
+            _order.amount = _order.amount - amount;
+            if( _order.amount == 0){
+                delete orderByHash[hashOrder];
+            }
         }
         else{
             revert("Must be fail earlier");
-        }
-        _order.status = Status.SelledPart;
-        if (_order.amount == 0){
-            cancelOrder(hashOrder);
         }
         emit BoughtOrder(msg.sender, _order.typeToken, amount, _order.target, hashOrder); 
     }
@@ -124,18 +130,31 @@ contract Market is AccessControl,Pausable{
         else{
             revert("Wrong name of token type");
         }
-
     }
     function calculateFeeFromOrder(uint _price) internal  view returns(uint){
         uint amountToService = (_price / 1000) * feePercent ;
         uint amountToUser = _price - amountToService;
         return amountToUser;
     }
-    function changerPaymentToken(address token)public returns(address){
+    function changePaymentToken(address token)public returns(address){
         require(hasRole(ADMIN, msg.sender));
         paymentToken = token;
         return paymentToken;
     }
-    
+    function changeFeePercent(uint _amount)public {
+        require(hasRole(ADMIN, msg.sender));
+        feePercent = _amount;
+    }
+    function onERC1155Received(address, address, uint256, uint256, bytes memory) public virtual returns (bytes4) {
+        return this.onERC1155Received.selector;
+    }
+
+    function onERC1155BatchReceived(address, address, uint256[] memory, uint256[] memory, bytes memory) public virtual returns (bytes4) {
+        return this.onERC1155BatchReceived.selector;
+    }
+
+    function onERC721Received(address, address, uint256, bytes memory) public virtual returns (bytes4) {
+        return this.onERC721Received.selector;
+    }   
 }
 
