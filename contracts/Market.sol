@@ -108,7 +108,7 @@ contract Market is AccessControl,Pausable{
             delete orderByHash[hashOrder];
         }
         else if  (_order.typeToken == Type.ERC1155){
-            IERC1155(_order.target).safeTransferFrom(address(this),address(msg.sender),_order.id, _order.amount, _order.data);
+            IERC1155(_order.target).safeTransferFrom(address(this),address(msg.sender),_order.id, amount, _order.data);
             _order.amount = _order.amount - amount;
             if( _order.amount == 0){
                 delete orderByHash[hashOrder];
