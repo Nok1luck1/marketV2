@@ -20,11 +20,14 @@ const main = async () => {
     // await collection.deployed();
     // console.log(`Token address : ${collection.address}`)
 
-    const Market = await ethers.getContractFactory('Market')
-    const market = await Market.deploy(Token,40)
-    await market.deployed();
-
-    console.log(`Market deployed to: ${market.address}`)
+    // const Market = await ethers.getContractFactory('Market')
+    // const market = await Market.deploy(Token,40)
+    // await market.deployed();
+    const Token = await ethers.getContractFactory("Token");
+    const token = await Token.deploy();
+    await token.deployed();
+    
+    console.log(`TOken deployed to: ${token.address}`)
 
 }
 
